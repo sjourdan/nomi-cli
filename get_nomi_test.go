@@ -42,8 +42,10 @@ func TestGetNomiCmdSuccess(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Override baseURL
+	// Override baseURL and initialize client
 	baseURL = server.URL
+	apiKey = "test-api-key"
+	client = NewNomiClient(apiKey, baseURL)
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -89,8 +91,10 @@ func TestGetNomiCmdNotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Override baseURL
+	// Override baseURL and initialize client
 	baseURL = server.URL
+	apiKey = "test-api-key"
+	client = NewNomiClient(apiKey, baseURL)
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -112,8 +116,8 @@ func TestGetNomiCmdNotFound(t *testing.T) {
 	outputStr := string(outBytes)
 
 	// Check that output indicates an error
-	if !strings.Contains(outputStr, "Error: 404 Not Found") {
-		t.Errorf("Expected output to contain \"Error: 404 Not Found\", got %q", outputStr)
+	if !strings.Contains(outputStr, "API error (404") {
+		t.Errorf("Expected output to contain API error 404, got %q", outputStr)
 	}
 }
 
@@ -124,8 +128,10 @@ func TestGetNomiCmdServerError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Override baseURL
+	// Override baseURL and initialize client
 	baseURL = server.URL
+	apiKey = "test-api-key"
+	client = NewNomiClient(apiKey, baseURL)
 
 	// Capture stdout
 	oldStdout := os.Stdout
@@ -145,8 +151,8 @@ func TestGetNomiCmdServerError(t *testing.T) {
 	outBytes, _ := io.ReadAll(rOut)
 	outputStr := string(outBytes)
 
-	if !strings.Contains(outputStr, "Error: 500 Internal Server Error") {
-		t.Errorf("Expected output to contain \"Error: 500 Internal Server Error\", got %q", outputStr)
+	if !strings.Contains(outputStr, "API error (500") {
+		t.Errorf("Expected output to contain API error 500, got %q", outputStr)
 	}
 }
 

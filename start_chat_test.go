@@ -51,8 +51,11 @@ func TestFetchNomis(t *testing.T) {
 	apiKey = "test-api-key"
 	baseURL = mockServer.URL
 
+	// Initialize the client for testing
+	client = NewNomiClient(apiKey, baseURL)
+
 	// Test fetching Nomis
-	nomis, err := fetchNomis()
+	nomis, err := client.GetNomis()
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 		return

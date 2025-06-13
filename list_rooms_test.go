@@ -147,8 +147,10 @@ func TestListRoomsCmd(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Override baseURL for testing
+	// Override baseURL and initialize client for testing
 	baseURL = server.URL
+	apiKey = "test-api-key"
+	client = NewNomiClient(apiKey, baseURL)
 
 	// Capture output
 	old := os.Stdout
@@ -194,8 +196,10 @@ func TestListRoomsCmdError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Override baseURL for testing
+	// Override baseURL and initialize client for testing
 	baseURL = server.URL
+	apiKey = "test-api-key"
+	client = NewNomiClient(apiKey, baseURL)
 
 	// Capture output
 	old := os.Stdout
@@ -217,7 +221,7 @@ func TestListRoomsCmdError(t *testing.T) {
 	outputStr := string(out)
 
 	// We expect an error message in the output
-	if !strings.Contains(outputStr, "Error: 500 Internal Server Error") {
-		t.Errorf("Expected output to contain server error message, got %q", outputStr)
+	if !strings.Contains(outputStr, "API error (500") {
+		t.Errorf("Expected output to contain API error 500, got %q", outputStr)
 	}
 }

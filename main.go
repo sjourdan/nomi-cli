@@ -7,8 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var apiKey string  // Store the API key globally
-var baseURL string // Store the base API URL globally
+var apiKey string      // Store the API key globally
+var baseURL string     // Store the base API URL globally
+var client *NomiClient // Global API client
 
 func main() {
 	var rootCmd = &cobra.Command{
@@ -30,6 +31,9 @@ func main() {
 			if baseURL == "" {
 				baseURL = "https://api.nomi.ai/v1" // Default value if environment variable is not set
 			}
+
+			// Initialize the API client
+			client = NewNomiClient(apiKey, baseURL)
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
@@ -38,7 +42,7 @@ func main() {
 			go spinner(stopChan)
 
 			// Get the list of Nomis
-			nomis, err := fetchNomis()
+			nomis, err := client.GetNomis()
 
 			// Stop the spinner
 			close(stopChan)

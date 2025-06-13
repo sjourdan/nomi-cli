@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
@@ -54,41 +52,16 @@ func clearScreen() {
 	}
 }
 
-// findNomiByName retrieves the UUID of a Nomi by its name.
+// findNomiByName retrieves the UUID of a Nomi by its name using case-insensitive comparison.
 func findNomiByName(name string) (string, error) {
-	client := &http.Client{}
-	url := fmt.Sprintf("%s/nomis", baseURL) // Use dynamic baseURL
-
-	// Fetch the list of Nomis
-	req, err := http.NewRequest("GET", url, nil)
+	nomis, err := client.GetNomis()
 	if err != nil {
-		return "", fmt.Errorf("error creating request: %v", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("error making request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("error fetching Nomis: %s", resp.Status)
+		return "", err
 	}
 
-	var result struct {
-		Nomis []struct {
-			UUID string `json:"uuid"`
-			Name string `json:"name"`
-		} `json:"nomis"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("error decoding response: %v", err)
-	}
-
-	// Search for the Nomi by name
-	for _, nomi := range result.Nomis {
-		if strings.EqualFold(nomi.Name, name) { // Case-insensitive comparison
+	// Search for the Nomi by name (case-insensitive)
+	for _, nomi := range nomis {
+		if strings.EqualFold(nomi.Name, name) {
 			return nomi.UUID, nil
 		}
 	}

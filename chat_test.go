@@ -46,6 +46,9 @@ func TestFindNomiByName(t *testing.T) {
 	apiKey = "test-api-key"
 	baseURL = server.URL
 
+	// Initialize the client for testing
+	client = NewNomiClient(apiKey, baseURL)
+
 	// Test finding existing Nomi
 	uuid, err := findNomiByName("John")
 	if err != nil {

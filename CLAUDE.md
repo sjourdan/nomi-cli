@@ -9,6 +9,11 @@ Nomi CLI is a command-line interface tool for interacting with the Nomi.ai API, 
 ## Core Architecture
 
 - **Main Application Structure**: Uses Cobra for CLI command management
+- **API Client**: Centralized `NomiClient` in `client.go` handles all HTTP communication
+  - Structured error handling with `APIError` type
+  - 30-second timeout configuration
+  - Reusable request patterns with authentication headers
+  - Methods: `GetNomis()`, `GetNomi()`, `GetRooms()`, `SendMessage()`, `FindNomiByName()`
 - **Authentication**: Uses API key in environment variable or passed as a flag
 - **Interactive TUI**:
   - Selectable Menu: When run without arguments, displays a styled, navigable menu of Nomis using BubbleTea
@@ -87,6 +92,44 @@ Example:
 export NOMI_API_KEY=your_api_key_here
 export NOMI_API_URL=https://api.nomi.ai/v1
 ```
+
+## API Client Architecture
+
+The application uses a centralized API client pattern implemented in `client.go`:
+
+### NomiClient Structure
+- **Initialization**: Created once in `main.go` during `PersistentPreRunE` and stored as global `client` variable
+- **HTTP Client**: Reuses single HTTP client instance with 30-second timeout
+- **Error Handling**: Returns structured `APIError` with status codes and descriptive messages
+- **Authentication**: Automatically adds Bearer token headers to all requests
+
+### Key Methods
+```go
+// Get all Nomis
+nomis, err := client.GetNomis()
+
+// Get specific Nomi by ID
+nomi, err := client.GetNomi(id)
+
+// Get all rooms
+rooms, err := client.GetRooms()
+
+// Send chat message
+response, err := client.SendMessage(nomiID, message)
+
+// Find Nomi UUID by name (case-insensitive)
+uuid, err := client.FindNomiByName(name)
+```
+
+### Testing Notes
+- Tests must initialize the global `client` variable with a mock server
+- Example test setup:
+```go
+baseURL = server.URL
+apiKey = "test-api-key"
+client = NewNomiClient(apiKey, baseURL)
+```
+- Error message format: `"API error (404 Not Found): Request to /endpoint failed"`
 
 ## User Interface Components
 

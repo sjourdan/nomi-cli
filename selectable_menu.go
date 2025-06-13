@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/charmbracelet/bubbletea"
 )
@@ -101,31 +99,4 @@ func selectableMenu(nomis []Nomi) (Nomi, error) {
 	}
 
 	return Nomi{}, fmt.Errorf("unexpected model type")
-}
-
-// fetchNomis retrieves the list of Nomis from the API
-func fetchNomis() ([]Nomi, error) {
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/nomis", baseURL), nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error: %s", resp.Status)
-	}
-
-	var result NomiResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("error decoding response: %v", err)
-	}
-
-	return result.Nomis, nil
 }

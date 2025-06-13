@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/spf13/cobra"
 )
@@ -41,43 +39,15 @@ var listRoomsCmd = &cobra.Command{
 	Short: "List all rooms",
 	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		client := &http.Client{}
-		url := baseURL + "/rooms"
-
-		// Create the request
-		req, err := http.NewRequest("GET", url, nil)
+		rooms, err := client.GetRooms()
 		if err != nil {
-			fmt.Println("Error creating request:", err)
-			return
-		}
-
-		// Set the Authorization header
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-
-		// Perform the request
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Println("Error making request:", err)
-			return
-		}
-		defer resp.Body.Close()
-
-		// Check the response status
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("Error: %s\n", resp.Status)
-			return
-		}
-
-		// Parse the response body
-		var response RoomResponse
-		if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-			fmt.Println("Error decoding response:", err)
+			fmt.Println("Error fetching rooms:", err)
 			return
 		}
 
 		// Print the Rooms
-		fmt.Printf("Total Rooms: %d\n\n", len(response.Rooms))
-		for _, room := range response.Rooms {
+		fmt.Printf("Total Rooms: %d\n\n", len(rooms))
+		for _, room := range rooms {
 			displayRoom(room)
 			fmt.Println()
 		}
