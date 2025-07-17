@@ -1,0 +1,24 @@
+import uuid
+
+class GroupChatManager:
+    def __init__(self):
+        self.groups = {}  # group_id -> set of nomi_ids
+
+    def create_group(self, group_name):
+        group_id = str(uuid.uuid4())
+        self.groups[group_id] = {'name': group_name, 'members': set()}
+        return group_id
+
+    def join_group(self, group_id, nomi_id):
+        if group_id in self.groups:
+            self.groups[group_id]['members'].add(nomi_id)
+            return True
+        return False
+
+    def list_groups(self):
+        return [(gid, info['name']) for gid, info in self.groups.items()]
+
+    def get_group_members(self, group_id):
+        return list(self.groups.get(group_id, {}).get('members', []))
+
+    # Add methods to send messages, broadcast to all AIs, etc.
