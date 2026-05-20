@@ -11,7 +11,10 @@ Nomi CLI is a command-line interface tool for interacting with the Nomi.ai API, 
 - **Main Application Structure**: Uses Cobra for CLI command management
 - **API Client**: Centralized `NomiClient` in `client.go` handles all HTTP communication
   - Structured error handling with `APIError` type
-  - 30-second timeout configuration
+  - Per-request timeouts via `context`: 30s for standard calls, 120s for chat
+    (the `/chat` endpoint triggers LLM generation and is slow). Overridable
+    with `NOMI_API_TIMEOUT` / `NOMI_CHAT_TIMEOUT` (seconds or Go durations).
+  - Chat requests retry transient failures (timeouts, 5xx) with exponential backoff
   - Reusable request patterns with authentication headers
   - Methods: `GetNomis()`, `GetNomi()`, `GetRooms()`, `SendMessage()`, `FindNomiByName()`
 - **Authentication**: Uses API key in environment variable or passed as a flag
@@ -86,6 +89,7 @@ The CLI requires configuration for the Nomi.ai API:
 
 - API Key: Set via `NOMI_API_KEY` environment variable or `-k/--api-key` flag
 - API URL: Set via `NOMI_API_URL` environment variable (defaults to "https://api.nomi.ai/v1")
+- Timeouts (optional): `NOMI_API_TIMEOUT` (default 30s) and `NOMI_CHAT_TIMEOUT` (default 120s); accepts plain seconds (`180`) or Go durations (`3m`)
 
 Example:
 ```bash
@@ -99,7 +103,7 @@ The application uses a centralized API client pattern implemented in `client.go`
 
 ### NomiClient Structure
 - **Initialization**: Created once in `main.go` during `PersistentPreRunE` and stored as global `client` variable
-- **HTTP Client**: Reuses single HTTP client instance with 30-second timeout
+- **HTTP Client**: Reuses a single HTTP client instance; each request is bounded by its own `context` timeout (30s default, 120s for chat)
 - **Error Handling**: Returns structured `APIError` with status codes and descriptive messages
 - **Authentication**: Automatically adds Bearer token headers to all requests
 
