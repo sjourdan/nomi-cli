@@ -36,32 +36,17 @@ func main() {
 			client = NewNomiClient(apiKey, baseURL)
 			return nil
 		},
-		Run: func(cmd *cobra.Command, args []string) {
-			// Start a spinner while fetching Nomis
-			stopChan := make(chan bool)
-			go spinner(stopChan)
-
-			// Get the list of Nomis
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("Loading Nomis...")
 			nomis, err := client.GetNomis()
-
-			// Stop the spinner
-			close(stopChan)
-			fmt.Print("\r") // Clear the spinner line
-
 			if err != nil {
-				fmt.Println("Error fetching Nomis:", err)
-				os.Exit(1)
+				return fmt.Errorf("fetching Nomis: %w", err)
 			}
-
-			// Display the selectable menu
-			selectedNomi, err := selectableMenu(nomis)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+			if len(nomis) == 0 {
+				return fmt.Errorf("no Nomis found on this account")
 			}
-
-			// Start chat with the selected Nomi
-			startChat(selectedNomi.Name)
+			// Empty name opens the TUI with the switcher in front.
+			return runTUI(nomis, "")
 		},
 	}
 

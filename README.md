@@ -16,8 +16,11 @@ The `Nomi CLI` is a command-line tool for interacting with the [Nomi.ai API](htt
   - Retrieve detailed information about a specific Nomi by ID.
 
 - **Chat with Nomis**:
-  - Start a live, interactive chat session with a Nomi.
+  - Start a live, interactive full-screen chat session with a Nomi.
   - Specify the Nomi by name instead of ID for ease of use.
+  - Press **Tab** mid-conversation to open a Nomi switcher and jump to a
+    different Nomi without leaving the app. Each conversation is kept in
+    memory while the app is open, so you can switch back and forth freely.
 
 ## Requirements
 
@@ -95,7 +98,7 @@ nomi get-nomi 123e4567-e89b-12d3-a456-426614174000
 
 3. Chat with Nomis
 
-Start a live, interactive chat session with a Nomi.
+Start a live, interactive full-screen chat session with a Nomi.
 
 ```bash
 ./nomi-cli chat [NOMI_NAME]
@@ -107,8 +110,16 @@ Example:
 ./nomi-cli chat John
 ```
 
-- Type messages directly into the terminal.
-- Type `exit` to end the session.
+Running `nomi-cli` with no arguments opens the same chat UI with the Nomi
+switcher in front, ready to pick whom to talk to.
+
+Key bindings inside the chat:
+
+- **Enter** — send the message you typed
+- **Tab** — open the Nomi switcher (type to filter, ↑/↓ to move, Enter to pick)
+- **PgUp / PgDn** — scroll the conversation history
+- **Esc** — close the switcher
+- **Ctrl+C** — quit
 
 ### Help
 

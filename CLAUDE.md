@@ -18,9 +18,16 @@ Nomi CLI is a command-line interface tool for interacting with the Nomi.ai API, 
   - Reusable request patterns with authentication headers
   - Methods: `GetNomis()`, `GetNomi()`, `GetRooms()`, `SendMessage()`, `FindNomiByName()`
 - **Authentication**: Uses API key in environment variable or passed as a flag
-- **Interactive TUI**:
-  - Selectable Menu: When run without arguments, displays a styled, navigable menu of Nomis using BubbleTea
-  - Chat Interface: Interactive chat with proper line editing (using readline library)
+- **Interactive TUI** (`tui.go`):
+  - A single full-screen BubbleTea program for chatting and switching Nomis
+  - Built from `bubbles` components: `viewport` (transcript), `textarea`
+    (composer), `textinput` (switcher filter), `spinner` (typing indicator)
+  - Nomi switcher: press Tab to open a centered modal list with substring
+    filtering; selecting a Nomi swaps the conversation without leaving the app
+  - Per-Nomi conversations are kept in memory, so switching back and forth
+    preserves each transcript (not persisted to disk)
+  - Sends are async (`tea.Cmd`): the UI never blocks, and replies are routed
+    by Nomi ID so they land correctly even after switching
 - **User Experience**:
   - Color-coded interface with consistent styling across components
   - Arrow key navigation in both menu selection and chat input
@@ -137,16 +144,25 @@ client = NewNomiClient(apiKey, baseURL)
 
 ## User Interface Components
 
-### Selectable Menu
-- Implemented using BubbleTea library
-- Navigate with arrow keys or vim-style j/k keys
-- Press Enter to select a Nomi and start chat
-- Press q to quit
+The interactive TUI lives entirely in `tui.go` as the `chatTUI` BubbleTea model.
+Running `nomi-cli` with no arguments opens it with the switcher in front;
+`nomi-cli chat <name>` opens it focused on a specific Nomi.
 
-### Chat Interface
-- Uses readline library for input handling
-- Features:
-  - Full arrow key navigation within text input
-  - In-memory command history with up/down arrows (session only, not persisted)
-  - Common keyboard shortcuts (Ctrl+A for start of line, Ctrl+E for end of line)
-- Colors used consistently across components (colorYellow for titles, colorBlue for instructions, colorGreen for user text)
+### Key bindings
+- **Tab**: open/close the Nomi switcher modal
+- **Enter**: send the composed message (chat) or pick the highlighted Nomi (switcher)
+- **↑/↓**: move the switcher selection; **PgUp/PgDn**: scroll the transcript
+- **Esc**: cancel the switcher
+- **Ctrl+C**: quit
+
+### Layout
+- Header bar (active Nomi + relationship), scrollable `viewport` transcript,
+  bordered `textarea` composer, and a footer hint line
+- Messages render as aligned, color-coded bubbles via `lipgloss` (user right,
+  Nomi left, errors highlighted)
+
+### Testing the TUI
+- `chatTUI` has a value receiver; drive it in tests by feeding `tea.Msg`
+  values to `Update` and asserting on the returned model
+- Send a `tea.WindowSizeMsg` first (see the `sized` test helper) so layout is
+  initialized before exercising key handling or `View()`
