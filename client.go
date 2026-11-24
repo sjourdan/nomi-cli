@@ -20,10 +20,12 @@ const (
 	defaultChatTimeout    = 120 * time.Second
 )
 
-// Retry policy for chat requests, which can fail transiently (timeouts,
-// 5xx responses). maxChatRetries is the number of retries after the first
-// attempt; backoff doubles each retry starting from chatRetryBackoff.
-const maxChatRetries = 2
+// Chat sends get two retries on transient failures. If every attempt so far
+// has been rejected because Nomi is busy, allow more time for the reply.
+const (
+	maxChatRetries     = 2
+	maxChatBusyRetries = 4
+)
 
 // chatRetryBackoff is the delay before the first retry; it doubles for each
 // subsequent retry. Declared as a var so tests can shrink it.
@@ -55,6 +57,7 @@ type APIError struct {
 	Status     string
 	StatusCode int
 	Message    string
+	Type       string
 }
 
 func (e *APIError) Error() string {
@@ -115,18 +118,23 @@ func (c *NomiClient) makeRequest(method, endpoint string, body interface{}, resu
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		var errorMessage string
-		if bodyBytes, err := io.ReadAll(resp.Body); err == nil && len(bodyBytes) > 0 {
-			errorMessage = fmt.Sprintf("Request to %s failed: %s", endpoint, string(bodyBytes))
-		} else {
-			errorMessage = fmt.Sprintf("Request to %s failed", endpoint)
-		}
-		
-		return &APIError{
+		apiErr := &APIError{
 			Status:     resp.Status,
 			StatusCode: resp.StatusCode,
-			Message:    errorMessage,
+			Message:    fmt.Sprintf("Request to %s failed", endpoint),
 		}
+		if bodyBytes, err := io.ReadAll(resp.Body); err == nil && len(bodyBytes) > 0 {
+			apiErr.Message += ": " + string(bodyBytes)
+			var payload struct {
+				Error struct {
+					Type string `json:"type"`
+				} `json:"error"`
+			}
+			if json.Unmarshal(bodyBytes, &payload) == nil {
+				apiErr.Type = payload.Error.Type
+			}
+		}
+		return apiErr
 	}
 
 	if result != nil {
@@ -179,29 +187,39 @@ func isRetryable(err error) bool {
 	return false
 }
 
+func isNomiStillResponding(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) &&
+		apiErr.StatusCode == http.StatusBadRequest && apiErr.Type == "NomiStillResponding"
+}
+
 func (c *NomiClient) SendMessage(nomiID, message string) (*ChatResponse, error) {
 	endpoint := fmt.Sprintf("/nomis/%s/chat", nomiID)
 	requestBody := ChatRequest{MessageText: message}
 
-	var lastErr error
-	for attempt := 0; attempt <= maxChatRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(chatRetryBackoff << (attempt - 1))
-		}
-
+	messageMayHaveBeenAccepted := false
+	for attempt := 1; ; attempt++ {
 		var response ChatResponse
 		err := c.makeRequest("POST", endpoint, requestBody, &response, c.chatTimeout)
 		if err == nil {
 			return &response, nil
 		}
 
-		lastErr = err
-		if !isRetryable(err) {
+		retryLimit := maxChatRetries
+		switch {
+		case !messageMayHaveBeenAccepted && isNomiStillResponding(err):
+			retryLimit = maxChatBusyRetries
+		case isRetryable(err):
+			// A later busy response could be triggered by this same message.
+			messageMayHaveBeenAccepted = true
+		default:
 			return nil, err
 		}
+		if attempt > retryLimit {
+			return nil, fmt.Errorf("chat request failed after %d attempts: %w", attempt, err)
+		}
+		time.Sleep(chatRetryBackoff << (attempt - 1))
 	}
-
-	return nil, fmt.Errorf("chat request failed after %d attempts: %w", maxChatRetries+1, lastErr)
 }
 
 func (c *NomiClient) FindNomiByName(name string) (string, error) {

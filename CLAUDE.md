@@ -14,7 +14,8 @@ Nomi CLI is a command-line interface tool for interacting with the Nomi.ai API, 
   - Per-request timeouts via `context`: 30s for standard calls, 120s for chat
     (the `/chat` endpoint triggers LLM generation and is slow). Overridable
     with `NOMI_API_TIMEOUT` / `NOMI_CHAT_TIMEOUT` (seconds or Go durations).
-  - Chat requests retry transient failures (timeouts, 5xx) with exponential backoff
+  - Chat requests retry timeouts and 5xx responses twice with exponential backoff.
+    If every attempt returns `NomiStillResponding`, the client allows four retries.
   - Reusable request patterns with authentication headers
   - Methods: `GetNomis()`, `GetNomi()`, `GetRooms()`, `SendMessage()`, `FindNomiByName()`
 - **Authentication**: Uses API key in environment variable or passed as a flag
