@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -11,6 +12,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+const maxChatMessageChars = 800
 
 // Fixed vertical chrome around the scrollable message area.
 const (
@@ -127,7 +130,7 @@ func newChatTUI(nomis []Nomi) chatTUI {
 	ta.Placeholder = "Type a message…"
 	ta.Prompt = "┃ "
 	ta.ShowLineNumbers = false
-	ta.CharLimit = 4000
+	ta.CharLimit = maxChatMessageChars
 	ta.SetHeight(composerInner)
 	ta.Focus()
 
@@ -201,6 +204,14 @@ func (m chatTUI) updateChat(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.viewport, cmd = m.viewport.Update(msg)
 		return m, cmd
 	default:
+		if len(msg.Runes) > 0 {
+			remaining := maxChatMessageChars - utf8.RuneCountInString(m.composer.Value())
+			if remaining <= 0 {
+				return m, nil
+			}
+			// The textarea subtracts display width from CharLimit before inserting runes.
+			m.composer.CharLimit = m.composer.Length() + remaining
+		}
 		var cmd tea.Cmd
 		m.composer, cmd = m.composer.Update(msg)
 		return m, cmd

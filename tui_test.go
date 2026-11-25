@@ -96,6 +96,36 @@ func TestSwitcherFilter(t *testing.T) {
 	}
 }
 
+func TestChatComposerCapsInputAt800Characters(t *testing.T) {
+	t.Run("paste", func(t *testing.T) {
+		m := sized(newChatTUI(testNomis()))
+		want := strings.Repeat("a", 800)
+
+		updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Paste: true, Runes: []rune(want + "b")})
+		m = updated.(chatTUI)
+
+		if m.composer.Value() != want {
+			t.Errorf("paste kept %d characters, want the first 800", len(m.composer.Value()))
+		}
+	})
+
+	t.Run("typing after wide characters", func(t *testing.T) {
+		m := sized(newChatTUI(testNomis()))
+		prefix := strings.Repeat("界", 799)
+		updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Paste: true, Runes: []rune(prefix)})
+		m = updated.(chatTUI)
+
+		updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+		m = updated.(chatTUI)
+		updated, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+		m = updated.(chatTUI)
+
+		if m.composer.Value() != prefix+"a" {
+			t.Errorf("typing kept %d characters, want the first 800", len([]rune(m.composer.Value())))
+		}
+	})
+}
+
 func TestSendAppendsPendingMessage(t *testing.T) {
 	m := sized(newChatTUI(testNomis()))
 	m.selectNomi("u-alice")
