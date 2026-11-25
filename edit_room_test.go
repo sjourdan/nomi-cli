@@ -95,18 +95,21 @@ func TestEditRoomCommand(t *testing.T) {
 			t.Setenv("NOMI_API_KEY", "test-api-key")
 			t.Setenv("NOMI_API_URL", server.URL+"/v1")
 
-			var output bytes.Buffer
+			var output, errorOutput bytes.Buffer
 			cmd := newRootCmd()
 			cmd.SetOut(&output)
-			cmd.SetErr(&output)
+			cmd.SetErr(&errorOutput)
 			cmd.SetArgs(append([]string{"edit-room", tt.room}, tt.flags...))
 			err := cmd.Execute()
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) || !strings.Contains(err.Error(), "Courtney Love") {
 					t.Fatalf("expected a participant mismatch identifying Courtney Love, got %v", err)
 				}
-				if strings.Contains(output.String(), "Room: "+tt.wantName) {
-					t.Errorf("mismatched update displayed as successful: %q", output.String())
+				if output.Len() != 0 {
+					t.Errorf("mismatched update wrote to stdout: %q", output.String())
+				}
+				if got := errorOutput.String(); strings.Count(got, tt.wantErr) != 1 || strings.Contains(got, "Usage:") {
+					t.Errorf("expected a single error with no usage text on stderr, got %q", got)
 				}
 				return
 			}

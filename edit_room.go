@@ -54,6 +54,7 @@ func newEditRoomCmd() *cobra.Command {
 				return fmt.Errorf("editing room: %w", err)
 			}
 			if request.NomiUUIDs != nil && !matchesRoomParticipants(room.Nomis, request.NomiUUIDs) {
+				cmd.SilenceUsage = true
 				room, err = client.GetRoom(id)
 				if err != nil {
 					return fmt.Errorf("verifying room participants after update: %w", err)
@@ -63,7 +64,11 @@ func newEditRoomCmd() *cobra.Command {
 					for _, nomi := range room.Nomis {
 						names = append(names, nomi.Name)
 					}
-					return fmt.Errorf("Nomi API did not apply the requested participant list. Current participants %q. Edit the participants in the Nomi app", names)
+					current := "The room has no participants."
+					if len(names) > 0 {
+						current = fmt.Sprintf("The room currently lists %s.", strings.Join(names, ", "))
+					}
+					return fmt.Errorf("Nomi API did not apply the requested participant list. %s Edit the participants in the Nomi app", current)
 				}
 			}
 			displayRoom(cmd.OutOrStdout(), *room)
