@@ -102,10 +102,11 @@ type conversation struct {
 
 // replyMsg routes an asynchronous reply to the conversation that sent it.
 type replyMsg struct {
-	conversationID string
-	speaker        string
-	reply          string
-	err            error
+	conversationID       string
+	speaker              Nomi
+	reply                string
+	roomRepliesRemaining int
+	err                  error
 }
 
 // chatTUI is the unified BubbleTea model: a chat view plus a Nomi switcher.
@@ -192,8 +193,8 @@ func (m chatTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case replyMsg:
-		m.handleReply(msg)
-		return m, nil
+		cmd := m.handleReply(msg)
+		return m, cmd
 
 	case tea.KeyMsg:
 		if m.switcherOpen {
@@ -308,22 +309,34 @@ func sendCmd(c *NomiClient, nomiID, text string) tea.Cmd {
 	}
 }
 
-func (m *chatTUI) handleReply(msg replyMsg) {
+func (m *chatTUI) handleReply(msg replyMsg) tea.Cmd {
 	conv := m.convos[msg.conversationID]
 	if conv == nil {
-		return
+		return nil
 	}
 	conv.pending = false
 	conv.pendingSpeaker = ""
+	var nextReply tea.Cmd
 	if msg.err != nil {
 		conv.messages = append(conv.messages, message{isError: true, text: "Error: " + msg.err.Error()})
 	} else {
-		conv.messages = append(conv.messages, message{text: msg.reply, speaker: msg.speaker})
+		conv.messages = append(conv.messages, message{text: msg.reply, speaker: msg.speaker.Name})
+		if msg.roomRepliesRemaining > 0 {
+			if speaker, ok := nextRoomSpeaker(m.nomis, msg.speaker.UUID); ok {
+				conv.pending = true
+				conv.pendingSpeaker = speaker.Name
+				c := m.client
+				nextReply = func() tea.Msg {
+					return requestRoomReply(c, msg.conversationID, speaker, msg.roomRepliesRemaining-1)
+				}
+			}
+		}
 	}
 	if msg.conversationID == m.active {
 		m.refreshViewport()
 		m.viewport.GotoBottom()
 	}
+	return nextReply
 }
 
 func (m *chatTUI) openSwitcher() {
@@ -491,7 +504,7 @@ func (m chatTUI) headerView() string {
 	if conv := m.convos[m.active]; conv != nil {
 		label = conv.name
 		if m.room != nil {
-			label += " · Reply by " + m.roomSpeaker.Name
+			label += " · First reply by " + m.roomSpeaker.Name
 		} else if conv.relationshipType != "" {
 			label += " · " + conv.relationshipType
 		}
@@ -506,7 +519,7 @@ func (m chatTUI) composerView() string {
 func (m chatTUI) footerView() string {
 	selector := "Tab switch Nomi"
 	if m.room != nil {
-		selector = "Tab choose speaker"
+		selector = "Tab choose first speaker"
 	}
 	return footerStyle.Width(m.width).Render(" " + selector + " · Enter send · PgUp/PgDn scroll · Ctrl+C quit")
 }
@@ -525,7 +538,7 @@ func (m chatTUI) switcherView() string {
 	var b strings.Builder
 	title := "Switch Nomi"
 	if m.room != nil {
-		title = "Choose room speaker"
+		title = "Choose first speaker"
 	}
 	b.WriteString(modalTitleStyle.Render(fmt.Sprintf("%s (%d)", title, len(filtered))))
 	b.WriteString("\n")

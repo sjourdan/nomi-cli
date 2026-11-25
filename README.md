@@ -140,13 +140,13 @@ If two Nomis share a name, use the participant's UUID from `list-nomis --full`.
 
 5. Join an Existing Room
 
-Use the room UUID printed by `list-rooms` or `create-room`.
+Use the room name. Name matching ignores case. If several rooms share a name, use the UUID from `list-rooms`.
 
 ```bash
-nomi join-room '<room-uuid>'
+nomi join-room 'Book club'
 ```
 
-Press **Tab** to choose which Nomi replies. **Enter** posts your message and requests a reply from the selected Nomi. The first participant is selected when the room opens, and the transcript shows messages from the current CLI session.
+Press **Tab** to choose who replies first. **Enter** posts your message and starts a turn of up to five Nomi replies total. The CLI randomly chooses each subsequent speaker from the other participants, then waits for your next message. The first participant is selected when the room opens, and the transcript shows messages from the current CLI session.
 
 6. Edit an Existing Room
 
