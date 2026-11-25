@@ -11,7 +11,7 @@ var apiKey string      // Store the API key globally
 var baseURL string     // Store the base API URL globally
 var client *NomiClient // Global API client
 
-func main() {
+func newRootCmd() *cobra.Command {
 	var rootCmd = &cobra.Command{
 		Use:   "nomi-cli",
 		Short: "A CLI client for the Nomi.ai API",
@@ -58,10 +58,17 @@ func main() {
 	rootCmd.AddCommand(getNomiCmd)
 	rootCmd.AddCommand(chatCmd)
 	rootCmd.AddCommand(listRoomsCmd)
+	rootCmd.AddCommand(newCreateRoomCmd())
+	rootCmd.AddCommand(joinRoomCmd)
+	rootCmd.AddCommand(newEditRoomCmd())
+	rootCmd.AddCommand(deleteRoomCmd)
 	rootCmd.AddCommand(versionCmd)
 
-	// Execute the root command
-	if err := rootCmd.Execute(); err != nil {
+	return rootCmd
+}
+
+func main() {
+	if err := newRootCmd().Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

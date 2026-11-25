@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -75,17 +76,9 @@ func TestDisplayRoom(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Capture output
-			old := os.Stdout
-			r, w, _ := os.Pipe()
-			os.Stdout = w
-
-			displayRoom(tt.room)
-
-			w.Close()
-			os.Stdout = old
-			out, _ := io.ReadAll(r)
-			outputStr := string(out)
+			var output bytes.Buffer
+			displayRoom(&output, tt.room)
+			outputStr := output.String()
 
 			for _, line := range tt.output {
 				if !strings.Contains(outputStr, line) {

@@ -32,8 +32,8 @@ func TestSelectNomiCreatesConversation(t *testing.T) {
 	if !ok {
 		t.Fatal("expected conversation for u-bob to be created")
 	}
-	if conv.nomi.Name != "Bob" {
-		t.Errorf("expected conversation Nomi Bob, got %q", conv.nomi.Name)
+	if conv.name != "Bob" {
+		t.Errorf("expected conversation Nomi Bob, got %q", conv.name)
 	}
 }
 
@@ -172,7 +172,7 @@ func TestReplyRoutedToCorrectConversation(t *testing.T) {
 	// User switches to Bob while Alice's reply is still in flight.
 	m.selectNomi("u-bob")
 
-	updated, _ := m.Update(replyMsg{nomiID: "u-alice", reply: "Hi from Alice"})
+	updated, _ := m.Update(replyMsg{conversationID: "u-alice", reply: "Hi from Alice"})
 	m = updated.(chatTUI)
 
 	alice := m.convos["u-alice"]
@@ -189,7 +189,7 @@ func TestReplyErrorRendersErrorMessage(t *testing.T) {
 	m.selectNomi("u-alice")
 	m.convos["u-alice"].pending = true
 
-	updated, _ := m.Update(replyMsg{nomiID: "u-alice", err: &APIError{StatusCode: 500, Status: "Internal Server Error", Message: "boom"}})
+	updated, _ := m.Update(replyMsg{conversationID: "u-alice", err: &APIError{StatusCode: 500, Status: "Internal Server Error", Message: "boom"}})
 	m = updated.(chatTUI)
 
 	msgs := m.convos["u-alice"].messages

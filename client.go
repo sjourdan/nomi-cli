@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -117,7 +118,7 @@ func (c *NomiClient) makeRequest(method, endpoint string, body interface{}, resu
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		apiErr := &APIError{
 			Status:     resp.Status,
 			StatusCode: resp.StatusCode,
@@ -172,6 +173,53 @@ func (c *NomiClient) GetRooms() ([]Room, error) {
 		return nil, err
 	}
 	return response.Rooms, nil
+}
+
+func (c *NomiClient) CreateRoom(request CreateRoomRequest) (*Room, error) {
+	var room Room
+	if err := c.makeRequest(http.MethodPost, "/rooms", request, &room, c.requestTimeout); err != nil {
+		return nil, err
+	}
+	return &room, nil
+}
+
+func (c *NomiClient) GetRoom(id string) (*Room, error) {
+	var room Room
+	if err := c.makeRequest(http.MethodGet, "/rooms/"+url.PathEscape(id), nil, &room, c.requestTimeout); err != nil {
+		return nil, err
+	}
+	return &room, nil
+}
+
+func (c *NomiClient) UpdateRoom(id string, request UpdateRoomRequest) (*Room, error) {
+	var room Room
+	if err := c.makeRequest(http.MethodPut, "/rooms/"+url.PathEscape(id), request, &room, c.requestTimeout); err != nil {
+		return nil, err
+	}
+	return &room, nil
+}
+
+func (c *NomiClient) DeleteRoom(id string) error {
+	return c.makeRequest(http.MethodDelete, "/rooms/"+url.PathEscape(id), nil, nil, c.requestTimeout)
+}
+
+func (c *NomiClient) SendRoomMessage(roomID, text string) error {
+	endpoint := "/rooms/" + url.PathEscape(roomID) + "/chat"
+	return c.makeRequest(http.MethodPost, endpoint, ChatRequest{MessageText: text}, nil, c.requestTimeout)
+}
+
+func (c *NomiClient) RequestRoomReply(roomID, nomiID string) (*Message, error) {
+	endpoint := "/rooms/" + url.PathEscape(roomID) + "/chat/request"
+	request := struct {
+		NomiUUID string `json:"nomiUuid"`
+	}{NomiUUID: nomiID}
+	var response struct {
+		ReplyMessage Message `json:"replyMessage"`
+	}
+	if err := c.makeRequest(http.MethodPost, endpoint, request, &response, c.chatTimeout); err != nil {
+		return nil, err
+	}
+	return &response.ReplyMessage, nil
 }
 
 // isRetryable reports whether err is a transient failure worth retrying:

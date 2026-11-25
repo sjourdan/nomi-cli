@@ -27,3 +27,17 @@ type Room struct {
 type RoomResponse struct {
 	Rooms []Room `json:"rooms"`
 }
+
+type CreateRoomRequest struct {
+	Name                  string   `json:"name"`
+	Note                  string   `json:"note"`
+	BackchannelingEnabled bool     `json:"backchannelingEnabled"`
+	NomiUUIDs             []string `json:"nomiUuids"`
+}
+
+type UpdateRoomRequest struct {
+	Name                  *string  `json:"name,omitempty"`
+	Note                  *string  `json:"note,omitempty"`
+	BackchannelingEnabled *bool    `json:"backchannelingEnabled,omitempty"`
+	NomiUUIDs             []string `json:"nomiUuids,omitempty"`
+}

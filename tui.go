@@ -88,30 +88,35 @@ type message struct {
 	fromUser bool
 	isError  bool
 	text     string
+	speaker  string
 }
 
-// conversation holds the in-memory transcript for one Nomi.
+// conversation holds the in-memory transcript for a Nomi or room.
 type conversation struct {
-	nomi     Nomi
-	messages []message
-	pending  bool // a reply is in flight
+	name             string
+	relationshipType string
+	messages         []message
+	pending          bool
+	pendingSpeaker   string
 }
 
-// replyMsg is delivered when an async SendMessage call completes. It carries
-// the Nomi ID so a reply is routed to the right conversation even if the user
-// has switched Nomis in the meantime.
+// replyMsg routes an asynchronous reply to the conversation that sent it.
 type replyMsg struct {
-	nomiID string
-	reply  string
-	err    error
+	conversationID string
+	speaker        string
+	reply          string
+	err            error
 }
 
 // chatTUI is the unified BubbleTea model: a chat view plus a Nomi switcher.
 type chatTUI struct {
 	client *NomiClient
 	nomis  []Nomi
-	convos map[string]*conversation // keyed by Nomi UUID
-	active string                   // UUID of the Nomi currently in view
+	convos map[string]*conversation // keyed by Nomi or room UUID
+	active string
+
+	room        *Room
+	roomSpeaker Nomi
 
 	viewport viewport.Model
 	composer textarea.Model
@@ -123,6 +128,15 @@ type chatTUI struct {
 
 	width, height int
 	ready         bool
+}
+
+func newRoomChatTUI(room Room) chatTUI {
+	m := newChatTUI(room.Nomis)
+	m.room = &room
+	m.roomSpeaker = room.Nomis[0]
+	m.active = room.UUID
+	m.convos[room.UUID] = &conversation{name: room.Name}
+	return m
 }
 
 func newChatTUI(nomis []Nomi) chatTUI {
@@ -251,21 +265,32 @@ func (m chatTUI) updateSwitcher(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// send dispatches the composer's text to the active Nomi asynchronously.
+// send dispatches the composer's text to the active conversation asynchronously.
 func (m *chatTUI) send() tea.Cmd {
 	text := strings.TrimSpace(m.composer.Value())
 	if text == "" || m.active == "" {
 		return nil
 	}
-	wasPending := m.anyPending()
 	conv := m.convos[m.active]
+	if m.room != nil && conv.pending {
+		return nil
+	}
+	wasPending := m.anyPending()
 	conv.messages = append(conv.messages, message{fromUser: true, text: text})
 	conv.pending = true
+	if m.room != nil {
+		conv.pendingSpeaker = m.roomSpeaker.Name
+	}
 	m.composer.Reset()
 	m.refreshViewport()
 	m.viewport.GotoBottom()
 
-	cmd := sendCmd(m.client, m.active, text)
+	var cmd tea.Cmd
+	if m.room != nil {
+		cmd = sendRoomCmd(m.client, m.room.UUID, m.roomSpeaker, text)
+	} else {
+		cmd = sendCmd(m.client, m.active, text)
+	}
 	if wasPending {
 		return cmd // spinner is already ticking
 	}
@@ -277,24 +302,25 @@ func sendCmd(c *NomiClient, nomiID, text string) tea.Cmd {
 	return func() tea.Msg {
 		resp, err := c.SendMessage(nomiID, text)
 		if err != nil {
-			return replyMsg{nomiID: nomiID, err: err}
+			return replyMsg{conversationID: nomiID, err: err}
 		}
-		return replyMsg{nomiID: nomiID, reply: resp.ReplyMessage.Text}
+		return replyMsg{conversationID: nomiID, reply: resp.ReplyMessage.Text}
 	}
 }
 
 func (m *chatTUI) handleReply(msg replyMsg) {
-	conv := m.convos[msg.nomiID]
+	conv := m.convos[msg.conversationID]
 	if conv == nil {
 		return
 	}
 	conv.pending = false
+	conv.pendingSpeaker = ""
 	if msg.err != nil {
 		conv.messages = append(conv.messages, message{isError: true, text: "Error: " + msg.err.Error()})
 	} else {
-		conv.messages = append(conv.messages, message{text: msg.reply})
+		conv.messages = append(conv.messages, message{text: msg.reply, speaker: msg.speaker})
 	}
-	if msg.nomiID == m.active {
+	if msg.conversationID == m.active {
 		m.refreshViewport()
 		m.viewport.GotoBottom()
 	}
@@ -306,8 +332,12 @@ func (m *chatTUI) openSwitcher() {
 	m.filter.SetValue("")
 	m.filter.Focus()
 	m.switcherCur = 0
+	selected := m.active
+	if m.room != nil {
+		selected = m.roomSpeaker.UUID
+	}
 	for i, n := range m.nomis {
-		if n.UUID == m.active {
+		if n.UUID == selected {
 			m.switcherCur = i
 		}
 	}
@@ -319,21 +349,24 @@ func (m *chatTUI) closeSwitcher() {
 	m.composer.Focus()
 }
 
-// selectNomi makes uuid the active conversation, creating it if needed.
+// selectNomi changes the active conversation or the room's next speaker.
 func (m *chatTUI) selectNomi(uuid string) {
-	if _, ok := m.convos[uuid]; !ok {
-		for _, n := range m.nomis {
-			if n.UUID == uuid {
-				m.convos[uuid] = &conversation{nomi: n}
-			}
+	for _, n := range m.nomis {
+		if n.UUID != uuid {
+			continue
 		}
-	}
-	if _, ok := m.convos[uuid]; !ok {
+		if m.room != nil {
+			m.roomSpeaker = n
+			return
+		}
+		if _, ok := m.convos[uuid]; !ok {
+			m.convos[uuid] = &conversation{name: n.Name, relationshipType: n.RelationshipType}
+		}
+		m.active = uuid
+		m.refreshViewport()
+		m.viewport.GotoBottom()
 		return
 	}
-	m.active = uuid
-	m.refreshViewport()
-	m.viewport.GotoBottom()
 }
 
 func (m chatTUI) filteredNomis() []Nomi {
@@ -385,7 +418,10 @@ func (m chatTUI) renderConversation() string {
 		w = m.width
 	}
 	if len(conv.messages) == 0 && !conv.pending {
-		return placeholderStyle.Render("\n  No messages yet — say hello to " + conv.nomi.Name + " 👋")
+		if m.room != nil {
+			return placeholderStyle.Render("\n  No messages in this session yet.")
+		}
+		return placeholderStyle.Render("\n  No messages yet — say hello to " + conv.name + " 👋")
 	}
 
 	maxBubble := w * 3 / 4
@@ -398,12 +434,14 @@ func (m chatTUI) renderConversation() string {
 		if i > 0 {
 			b.WriteString("\n\n")
 		}
-		style, pos, caption := nomiBubbleStyle, lipgloss.Left, conv.nomi.Name
+		style, pos, caption := nomiBubbleStyle, lipgloss.Left, conv.name
 		switch {
 		case msg.isError:
 			style, pos, caption = errorBubbleStyle, lipgloss.Left, "error"
 		case msg.fromUser:
 			style, pos, caption = userBubbleStyle, lipgloss.Right, "You"
+		case msg.speaker != "":
+			caption = msg.speaker
 		}
 		bub := renderBubble(style, msg.text, maxBubble)
 		b.WriteString(lipgloss.PlaceHorizontal(w, pos, captionStyle.Render(caption)))
@@ -414,7 +452,11 @@ func (m chatTUI) renderConversation() string {
 		if len(conv.messages) > 0 {
 			b.WriteString("\n\n")
 		}
-		line := typingStyle.Render(m.spin.View() + " " + conv.nomi.Name + " is typing…")
+		speaker := conv.name
+		if conv.pendingSpeaker != "" {
+			speaker = conv.pendingSpeaker
+		}
+		line := typingStyle.Render(m.spin.View() + " " + speaker + " is typing…")
 		b.WriteString(lipgloss.PlaceHorizontal(w, lipgloss.Left, line))
 	}
 	return b.String()
@@ -447,9 +489,11 @@ func (m chatTUI) View() string {
 func (m chatTUI) headerView() string {
 	label := "No Nomi selected"
 	if conv := m.convos[m.active]; conv != nil {
-		label = conv.nomi.Name
-		if conv.nomi.RelationshipType != "" {
-			label += " · " + conv.nomi.RelationshipType
+		label = conv.name
+		if m.room != nil {
+			label += " · Reply by " + m.roomSpeaker.Name
+		} else if conv.relationshipType != "" {
+			label += " · " + conv.relationshipType
 		}
 	}
 	return headerBarStyle.Width(m.width).Render(" 💬 " + label)
@@ -460,8 +504,11 @@ func (m chatTUI) composerView() string {
 }
 
 func (m chatTUI) footerView() string {
-	return footerStyle.Width(m.width).
-		Render(" Tab switch Nomi · Enter send · PgUp/PgDn scroll · Ctrl+C quit")
+	selector := "Tab switch Nomi"
+	if m.room != nil {
+		selector = "Tab choose speaker"
+	}
+	return footerStyle.Width(m.width).Render(" " + selector + " · Enter send · PgUp/PgDn scroll · Ctrl+C quit")
 }
 
 // switcherView renders the centered Nomi-picker modal.
@@ -476,7 +523,11 @@ func (m chatTUI) switcherView() string {
 
 	filtered := m.filteredNomis()
 	var b strings.Builder
-	b.WriteString(modalTitleStyle.Render(fmt.Sprintf("Switch Nomi (%d)", len(filtered))))
+	title := "Switch Nomi"
+	if m.room != nil {
+		title = "Choose room speaker"
+	}
+	b.WriteString(modalTitleStyle.Render(fmt.Sprintf("%s (%d)", title, len(filtered))))
 	b.WriteString("\n")
 	b.WriteString(m.filter.View())
 	b.WriteString("\n\n")

@@ -2,31 +2,32 @@ package main
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 )
 
-func displayRoom(room Room) {
+func displayRoom(out io.Writer, room Room) {
 	name := room.Name
 	if name == "" {
 		name = "<empty>"
 	}
 
-	fmt.Printf("Room: %s\n", name)
-	fmt.Printf("- UUID: %s\n", room.UUID)
-	fmt.Printf("- Created: %s\n", room.Created)
-	fmt.Printf("- Updated: %s\n", room.Updated)
-	fmt.Printf("- Status: %s\n", room.Status)
-	fmt.Printf("- Backchanneling: %v\n", room.BackchannelingEnabled)
+	fmt.Fprintf(out, "Room: %s\n", name)
+	fmt.Fprintf(out, "- UUID: %s\n", room.UUID)
+	fmt.Fprintf(out, "- Created: %s\n", room.Created)
+	fmt.Fprintf(out, "- Updated: %s\n", room.Updated)
+	fmt.Fprintf(out, "- Status: %s\n", room.Status)
+	fmt.Fprintf(out, "- Backchanneling: %v\n", room.BackchannelingEnabled)
 
 	if room.Note != "" {
-		fmt.Printf("- Note: %s\n", room.Note)
+		fmt.Fprintf(out, "- Note: %s\n", room.Note)
 	}
 
 	if len(room.Nomis) > 0 {
-		fmt.Println("- Nomis:")
+		fmt.Fprintln(out, "- Nomis:")
 		for _, nomi := range room.Nomis {
-			fmt.Printf("  • %s (%s, %s)\n",
+			fmt.Fprintf(out, "  • %s (%s, %s)\n",
 				nomi.Name,
 				nomi.Gender,
 				nomi.RelationshipType)
@@ -46,10 +47,11 @@ var listRoomsCmd = &cobra.Command{
 		}
 
 		// Print the Rooms
-		fmt.Printf("Total Rooms: %d\n\n", len(rooms))
+		out := cmd.OutOrStdout()
+		fmt.Fprintf(out, "Total Rooms: %d\n\n", len(rooms))
 		for _, room := range rooms {
-			displayRoom(room)
-			fmt.Println()
+			displayRoom(out, room)
+			fmt.Fprintln(out)
 		}
 	},
 }

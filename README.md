@@ -15,6 +15,10 @@ The `Nomi CLI` is a command-line tool for interacting with the [Nomi.ai API](htt
 
   - Retrieve detailed information about a specific Nomi by ID.
 
+- **Group Chat Rooms**:
+
+  - List, create, edit, and delete rooms, and chat in an existing room.
+
 - **Chat with Nomis**:
   - Start a live, interactive full-screen chat session with a Nomi.
   - Specify the Nomi by name instead of ID for ease of use.
@@ -120,6 +124,48 @@ Key bindings inside the chat:
 - **PgUp / PgDn** — scroll the conversation history
 - **Esc** — close the switcher
 - **Ctrl+C** — quit
+
+4. List and Create Rooms
+
+Use `list-nomis` to see available names and repeat `--nomi` for each participant. Name matching ignores case.
+
+```bash
+nomi list-rooms
+nomi create-room "Book club" --nomi 'Courtney Love' --nomi 'Alice' --note "Bring a book"
+```
+
+A room takes 1 to 10 Nomis. Add `--backchanneling` to enable backchanneling. The command prints the created room's UUID and status.
+
+If two Nomis share a name, use the participant's UUID from `list-nomis --full`.
+
+5. Join an Existing Room
+
+Use the room UUID printed by `list-rooms` or `create-room`.
+
+```bash
+nomi join-room '<room-uuid>'
+```
+
+Press **Tab** to choose which Nomi replies. **Enter** posts your message and requests a reply from the selected Nomi. The first participant is selected when the room opens, and the transcript shows messages from the current CLI session.
+
+6. Edit an Existing Room
+
+Use the room name or UUID and pass the settings you want to change.
+
+```bash
+nomi edit-room 'Book club' --name 'Weekend readers' --note 'Pick a new book each week'
+nomi edit-room 'Weekend readers' --nomi 'Courtney Love' --nomi 'Alice'
+```
+
+`--nomi` replaces the full participant list. Use `--note ''` to clear the note, `--backchanneling` to enable backchanneling, or `--backchanneling=false` to disable it. If room names are ambiguous, use the UUID from `list-rooms`.
+
+7. Delete a Room
+
+```bash
+nomi delete-room 'Book club'
+```
+
+Use a room name or the UUID from `list-rooms`. If several rooms share a name, use the UUID to select one.
 
 ### Help
 
