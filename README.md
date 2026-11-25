@@ -157,7 +157,9 @@ nomi edit-room 'Book club' --name 'Weekend readers' --note 'Pick a new book each
 nomi edit-room 'Weekend readers' --nomi 'Courtney Love' --nomi 'Alice'
 ```
 
-`--nomi` replaces the full participant list. Use `--note ''` to clear the note, `--backchanneling` to enable backchanneling, or `--backchanneling=false` to disable it. If room names are ambiguous, use the UUID from `list-rooms`.
+Repeat `--nomi` for every participant you want in the room. If the Nomi API retains an omitted participant, the command reports the mismatch. Use the Nomi app to remove that participant. When you combine a participant change with other settings, the API can apply those settings even if the participant change fails.
+
+Use `--note ''` to clear the note, `--backchanneling` to enable backchanneling, or `--backchanneling=false` to disable it. If room names are ambiguous, use the UUID from `list-rooms`.
 
 7. Delete a Room
 

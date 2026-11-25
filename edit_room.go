@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"maps"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -51,6 +53,19 @@ func newEditRoomCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("editing room: %w", err)
 			}
+			if request.NomiUUIDs != nil && !matchesRoomParticipants(room.Nomis, request.NomiUUIDs) {
+				room, err = client.GetRoom(id)
+				if err != nil {
+					return fmt.Errorf("verifying room participants after update: %w", err)
+				}
+				if !matchesRoomParticipants(room.Nomis, request.NomiUUIDs) {
+					names := make([]string, 0, len(room.Nomis))
+					for _, nomi := range room.Nomis {
+						names = append(names, nomi.Name)
+					}
+					return fmt.Errorf("Nomi API did not apply the requested participant list. Current participants %q. Edit the participants in the Nomi app", names)
+				}
+			}
 			displayRoom(cmd.OutOrStdout(), *room)
 			return nil
 		},
@@ -58,6 +73,18 @@ func newEditRoomCmd() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "", "New room name (up to 100 characters)")
 	cmd.Flags().StringVar(&note, "note", "", "New room note (pass an empty string to clear)")
 	cmd.Flags().BoolVar(&backchanneling, "backchanneling", false, "Set room backchanneling (use --backchanneling=false to disable)")
-	cmd.Flags().StringArrayVar(&participants, "nomi", nil, "Replace the participant list (repeat for each Nomi name or UUID)")
+	cmd.Flags().StringArrayVar(&participants, "nomi", nil, "Request a replacement participant list (repeat for each Nomi name or UUID)")
 	return cmd
+}
+
+func matchesRoomParticipants(nomis []Nomi, uuids []string) bool {
+	requested := make(map[string]struct{}, len(uuids))
+	for _, uuid := range uuids {
+		requested[strings.ToLower(uuid)] = struct{}{}
+	}
+	actual := make(map[string]struct{}, len(nomis))
+	for _, nomi := range nomis {
+		actual[strings.ToLower(nomi.UUID)] = struct{}{}
+	}
+	return maps.Equal(requested, actual)
 }

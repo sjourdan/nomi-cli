@@ -16,20 +16,23 @@ func TestEditRoomCommand(t *testing.T) {
 	const aliceID = "81837c4d-0282-48a7-8a36-4c25ac8c6cc1"
 	nomis := []Nomi{{UUID: courtneyID, Name: "Courtney Love"}, {UUID: aliceID, Name: "Alice"}}
 	for _, tt := range []struct {
-		name     string
-		room     string
-		flags    []string
-		body     map[string]any
-		wantName string
+		name           string
+		room           string
+		flags          []string
+		body           map[string]any
+		readback       []Nomi
+		wantName       string
+		wantErr        string
+		wantAbsentNomi string
 	}{
 		{
 			name: "edit all fields by room name",
 			room: "book club",
 			flags: []string{"--name", "Weekend readers", "--note", "Bring a book", "--backchanneling=false",
-				"--nomi", "Courtney Love", "--nomi", "Alice"},
+				"--nomi", "Alice", "--nomi", "Courtney Love"},
 			body: map[string]any{
 				"name": "Weekend readers", "note": "Bring a book", "backchannelingEnabled": false,
-				"nomiUuids": []any{courtneyID, aliceID},
+				"nomiUuids": []any{aliceID, courtneyID},
 			},
 			wantName: "Weekend readers",
 		},
@@ -40,6 +43,24 @@ func TestEditRoomCommand(t *testing.T) {
 			body:     map[string]any{"note": ""},
 			wantName: "Book club",
 		},
+		{
+			name:     "report when the API retains an omitted participant",
+			room:     "book club",
+			flags:    []string{"--nomi", "Alice"},
+			body:     map[string]any{"nomiUuids": []any{aliceID}},
+			readback: nomis,
+			wantName: "Book club",
+			wantErr:  "did not apply the requested participant list",
+		},
+		{
+			name:           "show the confirmed participants when the update response is stale",
+			room:           "book club",
+			flags:          []string{"--nomi", "Alice"},
+			body:           map[string]any{"nomiUuids": []any{aliceID}},
+			readback:       nomis[1:],
+			wantName:       "Book club",
+			wantAbsentNomi: "Courtney Love",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,6 +70,8 @@ func TestEditRoomCommand(t *testing.T) {
 					json.NewEncoder(w).Encode(RoomResponse{Rooms: []Room{{UUID: roomID, Name: "Book club"}}})
 				case r.Method == http.MethodGet && r.URL.Path == "/v1/nomis" && tt.body["nomiUuids"] != nil:
 					json.NewEncoder(w).Encode(NomiResponse{Nomis: nomis})
+				case r.Method == http.MethodGet && r.URL.Path == "/v1/rooms/"+roomID && tt.readback != nil:
+					json.NewEncoder(w).Encode(Room{UUID: roomID, Name: tt.wantName, Status: "Default", Nomis: tt.readback})
 				case r.Method == http.MethodPut && r.URL.Path == "/v1/rooms/"+roomID:
 					var body map[string]any
 					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -77,11 +100,24 @@ func TestEditRoomCommand(t *testing.T) {
 			cmd.SetOut(&output)
 			cmd.SetErr(&output)
 			cmd.SetArgs(append([]string{"edit-room", tt.room}, tt.flags...))
-			if err := cmd.Execute(); err != nil {
+			err := cmd.Execute()
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) || !strings.Contains(err.Error(), "Courtney Love") {
+					t.Fatalf("expected a participant mismatch identifying Courtney Love, got %v", err)
+				}
+				if strings.Contains(output.String(), "Room: "+tt.wantName) {
+					t.Errorf("mismatched update displayed as successful: %q", output.String())
+				}
+				return
+			}
+			if err != nil {
 				t.Fatalf("edit-room failed: %v", err)
 			}
 			if !strings.Contains(output.String(), "Room: "+tt.wantName) {
 				t.Errorf("output should show the updated room, got %q", output.String())
+			}
+			if tt.wantAbsentNomi != "" && strings.Contains(output.String(), tt.wantAbsentNomi) {
+				t.Errorf("output should use the confirmed participant list, got %q", output.String())
 			}
 		})
 	}
